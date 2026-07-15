@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kimi 命令速查</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: #f5f5f7;
+      color: #1d1d1f;
+      font-size: 13px;
+      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
+    }
+    .header {
+      background: #161823;
+      color: #fff;
+      padding: 10px 14px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .header h1 { font-size: 14px; font-weight: 600; }
+    .header-actions { display: flex; gap: 6px; }
+    .drag-hint {
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      text-align: center;
+      margin: -4px 0 6px;
+      padding: 4px 0;
+      cursor: grab;
+      user-select: none;
+    }
+    .btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: none;
+      padding: 4px 9px;
+      border-radius: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: rgba(255,255,255,0.28); }
+    .search-box {
+      width: 100%;
+      padding: 7px 11px;
+      border: none;
+      border-radius: 8px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+    .search-box::placeholder { color: rgba(255,255,255,0.5); }
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+    .category {
+      margin-bottom: 12px;
+      background: #fff;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .category-title {
+      background: #f0f0f2;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #333;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .category-title:hover { background: #e8e8eb; }
+    .category-title .toggle { font-size: 11px; color: #888; }
+    .category-content { display: block; }
+    .category.collapsed .category-content { display: none; }
+    .cmd-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      padding: 10px 14px;
+      border-top: 1px solid #f0f0f2;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cmd-row:hover { background: #f8f8fa; }
+    .cmd-row.copied { background: #e6f4ea; }
+    .cmd-name {
+      font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+      font-size: 12px;
+      color: #0066cc;
+      font-weight: 500;
+      word-break: break-all;
+      flex: 1;
+      margin-right: 10px;
+    }
+    .cmd-desc {
+      color: #555;
+      font-size: 12px;
+      text-align: right;
+      max-width: 55%;
+    }
+
+    .editor-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #fff;
+      z-index: 200;
+      flex-direction: column;
+    }
+    .editor-overlay.active { display: flex; }
+    .editor-header {
+      background: #161823;
+      color: #fff;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .editor-header h2 { font-size: 14px; font-weight: 600; }
+    .editor-drag-hint {
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      margin-top: 2px;
+      user-select: none;
+    }
+    .editor-actions { display: flex; gap: 6px; }
+    .editor-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow: hidden;
+    }
+    .editor-help {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    .editor-list {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafafa;
+    }
+    .editor-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      background: #fff;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .editor-row input {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      outline: none;
+    }
+    .editor-row input:focus { border-color: #0066cc; }
+    .editor-row input.cat { width: 110px; flex-shrink: 0; }
+    .editor-row input.cmd { flex: 1.5; min-width: 140px; font-family: 'SF Mono', monospace; }
+    .editor-row input.desc { flex: 2; min-width: 160px; }
+    .editor-row .row-actions {
+      display: flex;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .editor-row .row-actions button {
+      border: none;
+      background: #f0f0f2;
+      color: #333;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .editor-row .row-actions button:hover { background: #e0e0e3; }
+    .editor-row .row-actions button.danger { color: #ff3b30; }
+    .editor-footer-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .editor-error {
+      color: #ff3b30;
+      font-size: 12px;
+      min-height: 18px;
+    }
+
+    .quota-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #fff;
+      z-index: 210;
+      flex-direction: column;
+    }
+    .quota-overlay.active { display: flex; }
+    .quota-header {
+      background: #161823;
+      color: #fff;
+      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .quota-header h2 { font-size: 14px; font-weight: 600; }
+    .quota-drag-hint {
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      margin-top: 2px;
+      user-select: none;
+    }
+    .quota-actions { display: flex; gap: 6px; }
+    .quota-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 14px;
+      overflow-y: auto;
+    }
+    .quota-section {
+      margin-bottom: 14px;
+      padding: 12px;
+      background: #f8f8fa;
+      border-radius: 10px;
+    }
+    .quota-section-title {
+      font-weight: 600;
+      font-size: 13px;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    .quota-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .quota-row:last-child { margin-bottom: 0; }
+    .quota-row label {
+      font-size: 12px;
+      color: #555;
+      flex-shrink: 0;
+    }
+    .quota-row input[type="text"],
+    .quota-row input[type="password"],
+    .quota-row input[type="number"] {
+      flex: 1;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 12px;
+      outline: none;
+      font-family: 'SF Mono', Monaco, monospace;
+    }
+    .quota-row input:focus { border-color: #0066cc; }
+    .quota-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    .quota-row .hint {
+      font-size: 11px;
+      color: #888;
+    }
+    .quota-result-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .quota-result-card {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .quota-result-card .label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+    .quota-result-card .value {
+      font-size: 18px;
+      font-weight: 600;
+      color: #161823;
+    }
+    .quota-result-card .sub {
+      font-size: 10px;
+      color: #999;
+      margin-top: 2px;
+    }
+    .quota-raw {
+      background: #fff;
+      border-radius: 8px;
+      padding: 10px;
+      font-family: 'SF Mono', Monaco, monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 160px;
+      overflow-y: auto;
+      color: #444;
+      border: 1px solid #eee;
+    }
+    .quota-error {
+      color: #ff3b30;
+      font-size: 12px;
+      background: #fff0f0;
+      padding: 8px 10px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .quota-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: auto;
+      padding-top: 10px;
+    }
+    .quota-status {
+      font-size: 11px;
+      color: #888;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #161823;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      opacity: 0;
+      transition: all 0.25s ease;
+      pointer-events: none;
+      z-index: 300;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #333;
+      font-size: 12px;
+      padding: 10px 12px;
+      border-top: 1px solid #e0e0e3;
+      background: #fff;
+      box-shadow: 0 -1px 4px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+    }
+    .version-status {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-right: 10px;
+      font-weight: 500;
+    }
+    .version-status.error { color: #ff3b30; }
+    .version-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .version-refresh,
+    .version-upgrade,
+    .version-project {
+      border: none;
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+      line-height: 1.4;
+    }
+    .version-refresh {
+      background: rgba(0,0,0,0.06);
+      color: #555;
+      padding: 4px 7px;
+    }
+    .version-refresh:hover { background: rgba(0,0,0,0.12); }
+    .version-project {
+      background: rgba(0,102,204,0.1);
+      color: #0066cc;
+      font-weight: 500;
+    }
+    .version-project:hover { background: rgba(0,102,204,0.2); }
+    .version-upgrade {
+      background: #ff3b30;
+      color: #fff;
+      font-weight: 500;
+    }
+    .version-upgrade:hover { background: #e63329; }
+    .version-upgrade:disabled,
+    .version-refresh:disabled,
+    .version-project:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="header" data-tauri-drag-region="deep" onmousedown="if(window.__TAURI__&&window.__TAURI__.window)window.__TAURI__.window.startDragging();">
+    <div class="header-top" data-tauri-drag-region="deep">
+      <h1>Kimi Code CLI 命令速查</h1>
+      <div class="header-actions">
+        <button class="btn" id="quotaBtn">额度</button>
+        <button class="btn" id="launchBtn">启动</button>
+        <button class="btn" id="editBtn">编辑</button>
+      </div>
+    </div>
+    <div class="drag-hint" data-tauri-drag-region="deep">按住顶部空白处拖动窗口</div>
+    <input type="text" class="search-box" id="searchBox" placeholder="搜索命令或中文说明..." data-tauri-drag-region="false">
+  </div>
+
+  <div class="content" id="content"></div>
+  <div class="footer">
+    <span class="version-status" id="versionStatus">正在检测版本...</span>
+    <div class="version-actions">
+      <button class="version-project" id="versionProjectBtn" title="打开 Kimi Code 项目地址">项目</button>
+      <button class="version-refresh" id="versionRefreshBtn" title="重新检测版本">↻</button>
+      <button class="version-upgrade" id="versionUpgradeBtn" style="display:none;">升级</button>
+    </div>
+  </div>
+
+  <div class="editor-overlay" id="editorOverlay">
+    <div class="editor-header" data-tauri-drag-region="deep" onmousedown="if(window.__TAURI__&&window.__TAURI__.window)window.__TAURI__.window.startDragging();">
+      <div data-tauri-drag-region="deep">
+        <h2>编辑命令</h2>
+        <div class="editor-drag-hint">按住顶部空白处拖动</div>
+      </div>
+      <div class="editor-actions">
+        <button class="btn" id="resetBtn">恢复默认</button>
+        <button class="btn" id="saveBtn">保存</button>
+        <button class="btn" id="closeEditorBtn">关闭</button>
+      </div>
+    </div>
+    <div class="editor-body">
+      <div class="editor-help">
+        直接修改下方列表。每一行是一条命令：分类、命令、中文说明。点击「+ 添加」新增，点 🗑 删除，⇧ ⇩ 调整顺序。
+      </div>
+      <div class="editor-list" id="editorList"></div>
+      <div class="editor-footer-actions">
+        <button class="btn" id="addBtn" style="background:#0066cc;color:#fff;">+ 添加命令</button>
+        <div class="editor-error" id="editorError"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">已复制</div>
+
+  <div class="quota-overlay" id="launchOverlay">
+    <div class="quota-header" data-tauri-drag-region="deep" onmousedown="if(window.__TAURI__&&window.__TAURI__.window)window.__TAURI__.window.startDragging();">
+      <div data-tauri-drag-region="deep">
+        <h2>启动设置</h2>
+        <div class="quota-drag-hint">按住顶部空白处拖动</div>
+      </div>
+      <div class="quota-actions">
+        <button class="btn" id="testCliBtn">测试 CLI</button>
+        <button class="btn" id="testWebBtn">测试 Web</button>
+        <button class="btn" id="saveLaunchBtn">保存</button>
+        <button class="btn" id="closeLaunchBtn">关闭</button>
+      </div>
+    </div>
+    <div class="quota-body">
+      <div class="quota-section">
+        <div class="quota-section-title">启动命令</div>
+        <div class="quota-row" style="align-items:flex-start;">
+          <label style="padding-top:6px;">CLI</label>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input type="text" id="cliCommand" placeholder="osascript -e 'tell application \"Terminal\" to do script \"kimi\"'">
+            <span class="hint">macOS 默认用 Terminal 打开新窗口执行 kimi；可改成 iTerm 或其他命令。</span>
+          </div>
+        </div>
+        <div class="quota-row" style="align-items:flex-start;">
+          <label style="padding-top:6px;">Web</label>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <input type="text" id="webCommand" placeholder="kimi web">
+            <span class="hint">启动 Kimi Web UI 的命令，可带 --host、--auth-token 等参数。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="quota-section">
+        <div class="quota-section-title">当前状态</div>
+        <div class="quota-result-grid">
+          <div class="quota-result-card">
+            <div class="label">CLI</div>
+            <div class="value" id="cliStatusValue">-</div>
+          </div>
+          <div class="quota-result-card">
+            <div class="label">Web</div>
+            <div class="value" id="webStatusValue">-</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="quota-footer">
+        <div class="quota-status" id="launchStatus">就绪</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="quota-overlay" id="quotaOverlay">
+    <div class="quota-header" data-tauri-drag-region="deep" onmousedown="if(window.__TAURI__&&window.__TAURI__.window)window.__TAURI__.window.startDragging();">
+      <div data-tauri-drag-region="deep">
+        <h2>Kimi 额度查询设置</h2>
+        <div class="quota-drag-hint">按住顶部空白处拖动</div>
+      </div>
+      <div class="quota-actions">
+        <button class="btn" id="refreshQuotaBtn">手动刷新</button>
+        <button class="btn" id="saveQuotaBtn">保存</button>
+        <button class="btn" id="closeQuotaBtn">关闭</button>
+      </div>
+    </div>
+    <div class="quota-body">
+      <div class="quota-section">
+        <div class="quota-section-title">查询配置</div>
+        <div class="quota-row">
+          <label>启用查询</label>
+          <input type="checkbox" id="quotaEnabled">
+        </div>
+        <div class="quota-row">
+          <label>Kimi API Key</label>
+          <input type="password" id="quotaApiKey" placeholder="sk-...">
+        </div>
+        <div class="quota-row">
+          <label>自动刷新间隔</label>
+          <input type="number" id="quotaInterval" min="0" max="1440" value="5" style="width:70px;flex:0;">
+          <span class="hint">分钟（0 = 不自动刷新）</span>
+        </div>
+      </div>
+
+      <div class="quota-section">
+        <div class="quota-section-title">最新结果</div>
+        <div id="quotaError" class="quota-error" style="display:none;"></div>
+        <div class="quota-result-grid" id="quotaResultGrid">
+          <div class="quota-result-card">
+            <div class="label">5 小时额度剩余</div>
+            <div class="value" id="fiveHourValue">-</div>
+            <div class="sub" id="fiveHourSub">-</div>
+            <div class="sub" id="fiveHourReset" style="color:#0066cc;margin-top:4px;">-</div>
+          </div>
+          <div class="quota-result-card">
+            <div class="label">周额度剩余</div>
+            <div class="value" id="weeklyValue">-</div>
+            <div class="sub" id="weeklySub">-</div>
+            <div class="sub" id="weeklyReset" style="color:#0066cc;margin-top:4px;">-</div>
+          </div>
+        </div>
+        <div class="quota-section-title">官方返回原始数据</div>
+        <pre class="quota-raw" id="quotaRaw">暂无数据</pre>
+      </div>
+
+      <div class="quota-footer">
+        <div class="quota-status" id="quotaStatus">未配置</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { invoke } = window.__TAURI__.core;
+    const { listen } = window.__TAURI__.event;
+
+    let currentCommands = [];
+
+    async function initCommands() {
+      currentCommands = await invoke("load_commands");
+      render();
+    }
+
+    function render(filter = '') {
+      const content = document.getElementById('content');
+      content.innerHTML = '';
+
+      const lowerFilter = filter.toLowerCase();
+      const filtered = currentCommands.filter(item =>
+        item.cmd.toLowerCase().includes(lowerFilter) ||
+        item.desc.toLowerCase().includes(lowerFilter) ||
+        item.cat.toLowerCase().includes(lowerFilter)
+      );
+
+      const grouped = {};
+      filtered.forEach(item => {
+        if (!grouped[item.cat]) grouped[item.cat] = [];
+        grouped[item.cat].push(item);
+      });
+
+      Object.keys(grouped).forEach(cat => {
+        const catDiv = document.createElement('div');
+        catDiv.className = 'category';
+
+        const title = document.createElement('div');
+        title.className = 'category-title';
+        title.innerHTML = `<span>${escapeHtml(cat)}</span><span class="toggle">点击折叠</span>`;
+        title.onclick = () => {
+          catDiv.classList.toggle('collapsed');
+          title.querySelector('.toggle').textContent =
+            catDiv.classList.contains('collapsed') ? '点击展开' : '点击折叠';
+        };
+
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'category-content';
+
+        grouped[cat].forEach(item => {
+          const row = document.createElement('div');
+          row.className = 'cmd-row';
+          row.innerHTML = `<div class="cmd-name">${escapeHtml(item.cmd)}</div><div class="cmd-desc">${escapeHtml(item.desc)}</div>`;
+          row.onclick = () => copyToClipboard(item.cmd, row);
+          contentDiv.appendChild(row);
+        });
+
+        catDiv.appendChild(title);
+        catDiv.appendChild(contentDiv);
+        content.appendChild(catDiv);
+      });
+
+      if (filtered.length === 0) {
+        content.innerHTML = '<div class="footer" style="padding-top: 40px;">未找到匹配的命令</div>';
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    async function copyToClipboard(text, row) {
+      try {
+        await navigator.clipboard.writeText(text);
+        row.classList.add('copied');
+        showToast(`已复制: ${text}`);
+        setTimeout(() => row.classList.remove('copied'), 800);
+      } catch {
+        showToast('复制失败');
+      }
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+    const editorOverlay = document.getElementById('editorOverlay');
+    const editorList = document.getElementById('editorList');
+    const editorError = document.getElementById('editorError');
+    let editingCommands = [];
+
+    function createEditorRow(item, index) {
+      const row = document.createElement('div');
+      row.className = 'editor-row';
+      row.dataset.index = index;
+
+      const catInput = document.createElement('input');
+      catInput.className = 'cat';
+      catInput.placeholder = '分类';
+      catInput.value = item.cat || '';
+
+      const cmdInput = document.createElement('input');
+      cmdInput.className = 'cmd';
+      cmdInput.placeholder = '命令';
+      cmdInput.value = item.cmd || '';
+
+      const descInput = document.createElement('input');
+      descInput.className = 'desc';
+      descInput.placeholder = '中文说明';
+      descInput.value = item.desc || '';
+
+      const actions = document.createElement('div');
+      actions.className = 'row-actions';
+
+      const upBtn = document.createElement('button');
+      upBtn.textContent = '⇧';
+      upBtn.title = '上移';
+      upBtn.onclick = () => moveRow(index, -1);
+
+      const downBtn = document.createElement('button');
+      downBtn.textContent = '⇩';
+      downBtn.title = '下移';
+      downBtn.onclick = () => moveRow(index, 1);
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'danger';
+      delBtn.textContent = '🗑';
+      delBtn.title = '删除';
+      delBtn.onclick = () => deleteRow(index);
+
+      actions.appendChild(upBtn);
+      actions.appendChild(downBtn);
+      actions.appendChild(delBtn);
+
+      row.appendChild(catInput);
+      row.appendChild(cmdInput);
+      row.appendChild(descInput);
+      row.appendChild(actions);
+
+      return row;
+    }
+
+    function renderEditorList() {
+      editorList.innerHTML = '';
+      editingCommands.forEach((item, index) => {
+        editorList.appendChild(createEditorRow(item, index));
+      });
+      editorError.textContent = '';
+    }
+
+    function readEditorList() {
+      const rows = editorList.querySelectorAll('.editor-row');
+      const result = [];
+      rows.forEach(row => {
+        const inputs = row.querySelectorAll('input');
+        result.push({
+          cat: inputs[0].value.trim(),
+          cmd: inputs[1].value.trim(),
+          desc: inputs[2].value.trim()
+        });
+      });
+      return result;
+    }
+
+    function addRow() {
+      editingCommands.push({ cat: '', cmd: '', desc: '' });
+      renderEditorList();
+      const inputs = editorList.lastElementChild.querySelectorAll('input');
+      if (inputs[0]) inputs[0].focus();
+    }
+
+    function deleteRow(index) {
+      if (!confirm('确定删除这条命令吗？')) return;
+      editingCommands.splice(index, 1);
+      renderEditorList();
+    }
+
+    function moveRow(index, delta) {
+      const newIndex = index + delta;
+      if (newIndex < 0 || newIndex >= editingCommands.length) return;
+      editingCommands = readEditorList();
+      const temp = editingCommands[index];
+      editingCommands[index] = editingCommands[newIndex];
+      editingCommands[newIndex] = temp;
+      renderEditorList();
+    }
+
+    window.openEditor = function() {
+      editingCommands = currentCommands.map(c => ({ ...c }));
+      renderEditorList();
+      editorOverlay.classList.add('active');
+    };
+
+    function closeEditor() {
+      editorOverlay.classList.remove('active');
+    }
+
+    async function saveEditor() {
+      const parsed = readEditorList();
+
+      for (let i = 0; i < parsed.length; i++) {
+        const item = parsed[i];
+        if (!item.cat || !item.cmd || !item.desc) {
+          editorError.textContent = `第 ${i + 1} 行有空白项，请填写完整`;
+          return;
+        }
+      }
+
+      try {
+        await invoke("save_commands", { commands: parsed });
+        currentCommands = parsed;
+        render(document.getElementById('searchBox').value);
+        editorError.textContent = '';
+        showToast('已保存');
+        closeEditor();
+      } catch (err) {
+        editorError.textContent = '保存失败: ' + err;
+      }
+    }
+
+    function resetDefault() {
+      if (confirm('确定恢复默认命令吗？自定义修改将丢失。')) {
+        invoke("load_commands").then(commands => {
+          editingCommands = commands.map(c => ({ ...c }));
+          renderEditorList();
+          editorError.textContent = '';
+        });
+      }
+    }
+
+    document.getElementById('editBtn').onclick = window.openEditor;
+    document.getElementById('saveBtn').onclick = saveEditor;
+    document.getElementById('closeEditorBtn').onclick = closeEditor;
+    document.getElementById('resetBtn').onclick = resetDefault;
+    document.getElementById('addBtn').onclick = addRow;
+
+    document.getElementById('searchBox').addEventListener('input', (e) => {
+      render(e.target.value);
+    });
+
+    document.getElementById('searchBox').addEventListener('dblclick', (e) => {
+      e.target.value = '';
+      render('');
+      e.target.focus();
+      showToast('搜索已清空');
+    });
+
+    listen("menu-export", async () => {
+      try {
+        await invoke("export_commands");
+        showToast('导出成功');
+      } catch (err) {
+        showToast('导出失败: ' + err);
+      }
+    });
+
+    listen("menu-import", async () => {
+      try {
+        const commands = await invoke("import_commands");
+        await invoke("save_commands", { commands });
+        currentCommands = commands;
+        render(document.getElementById('searchBox').value);
+        showToast('导入成功');
+      } catch (err) {
+        showToast('导入失败: ' + err);
+      }
+    });
+
+    listen("reset-ui", () => {
+      document.getElementById('editorOverlay').classList.remove('active');
+      document.getElementById('quotaOverlay').classList.remove('active');
+      document.getElementById('launchOverlay').classList.remove('active');
+      const searchBox = document.getElementById('searchBox');
+      searchBox.value = '';
+      render('');
+      window.scrollTo(0, 0);
+    });
+
+    // ── 额度查询 ───────────────────────────────────────────────────────────
+    const quotaOverlay = document.getElementById('quotaOverlay');
+    const quotaEnabled = document.getElementById('quotaEnabled');
+    const quotaApiKey = document.getElementById('quotaApiKey');
+    const quotaInterval = document.getElementById('quotaInterval');
+    const quotaError = document.getElementById('quotaError');
+    const fiveHourValue = document.getElementById('fiveHourValue');
+    const fiveHourSub = document.getElementById('fiveHourSub');
+    const fiveHourReset = document.getElementById('fiveHourReset');
+    const weeklyValue = document.getElementById('weeklyValue');
+    const weeklySub = document.getElementById('weeklySub');
+    const weeklyReset = document.getElementById('weeklyReset');
+    const quotaRaw = document.getElementById('quotaRaw');
+    const quotaStatus = document.getElementById('quotaStatus');
+
+    function closeQuotaSettings() {
+      quotaOverlay.classList.remove('active');
+    }
+
+    function openQuotaSettings() {
+      loadQuotaSettings();
+      quotaOverlay.classList.add('active');
+    }
+
+    async function loadQuotaSettings() {
+      try {
+        const settings = await invoke("load_quota_settings");
+        quotaEnabled.checked = settings.enabled;
+        quotaApiKey.value = settings.api_key || '';
+        quotaInterval.value = settings.interval_minutes || 0;
+        const last = await invoke("load_last_quota");
+        renderQuotaResult(last);
+        updateQuotaStatus(settings, last);
+      } catch (err) {
+        showToast('加载设置失败: ' + err);
+      }
+    }
+
+    async function saveQuotaSettings() {
+      const settings = {
+        enabled: quotaEnabled.checked,
+        api_key: quotaApiKey.value.trim(),
+        interval_minutes: parseInt(quotaInterval.value, 10) || 0
+      };
+      if (settings.interval_minutes > 1440) settings.interval_minutes = 1440;
+      if (settings.interval_minutes < 0) settings.interval_minutes = 0;
+      try {
+        await invoke("save_quota_settings", { settings });
+        showToast('已保存');
+        closeQuotaSettings();
+        // 保存后强制刷新一次额度（不受自动刷新间隔限制）
+        if (settings.enabled && settings.api_key) {
+          invoke("refresh_quota").catch(() => {});
+        }
+      } catch (err) {
+        showToast('保存失败: ' + err);
+      }
+    }
+
+    function renderQuotaResult(result) {
+      quotaError.style.display = 'none';
+      quotaError.textContent = '';
+
+      if (!result || (!result.success && !result.error)) {
+        fiveHourValue.textContent = '-';
+        fiveHourSub.textContent = '-';
+        fiveHourReset.textContent = '-';
+        weeklyValue.textContent = '-';
+        weeklySub.textContent = '-';
+        weeklyReset.textContent = '-';
+        quotaRaw.textContent = '暂无数据';
+        return;
+      }
+
+      if (!result.success) {
+        quotaError.style.display = 'block';
+        quotaError.textContent = result.error || '查询失败';
+        fiveHourReset.textContent = '-';
+        weeklyReset.textContent = '-';
+        quotaRaw.textContent = JSON.stringify(result.raw || {}, null, 2);
+        return;
+      }
+
+      if (result.five_hour) {
+        fiveHourValue.textContent = fmtNum(result.five_hour.remaining);
+        fiveHourSub.textContent = `共 ${fmtNum(result.five_hour.limit)} · ${result.five_hour.percentage || 0}% 剩余`;
+        fiveHourReset.textContent = timeUntilReset(result.five_hour.reset_time) || '无重置时间';
+      } else {
+        fiveHourValue.textContent = '-';
+        fiveHourSub.textContent = '未返回';
+        fiveHourReset.textContent = '-';
+      }
+
+      if (result.weekly) {
+        weeklyValue.textContent = fmtNum(result.weekly.remaining);
+        weeklySub.textContent = `共 ${fmtNum(result.weekly.limit)} · ${result.weekly.percentage || 0}% 剩余`;
+        weeklyReset.textContent = timeUntilReset(result.weekly.reset_time) || '无重置时间';
+      } else {
+        weeklyValue.textContent = '-';
+        weeklySub.textContent = '未返回';
+        weeklyReset.textContent = '-';
+      }
+
+      quotaRaw.textContent = JSON.stringify(result.raw || {}, null, 2);
+    }
+
+    function timeUntilReset(resetTime) {
+      if (!resetTime) return '';
+      const dt = new Date(resetTime);
+      if (isNaN(dt.getTime())) return '';
+      const now = new Date();
+      const secs = Math.floor((dt - now) / 1000);
+      if (secs <= 0) return '即将重置';
+      if (secs < 3600) return `${Math.floor(secs / 60)} 分钟后重置`;
+      if (secs < 86400) return `${Math.floor(secs / 3600)} 小时 ${Math.floor((secs % 3600) / 60)} 分钟后重置`;
+      return `${Math.floor(secs / 86400)} 天 ${Math.floor((secs % 86400) / 3600)} 小时后重置`;
+    }
+
+    function fmtNum(n) {
+      if (n === undefined || n === null) return '-';
+      const num = Number(n);
+      if (Number.isInteger(num)) return num.toString();
+      return num.toFixed(2);
+    }
+
+    function updateQuotaStatus(settings, result) {
+      if (!settings.enabled) {
+        quotaStatus.textContent = '已禁用';
+        return;
+      }
+      if (!settings.api_key) {
+        quotaStatus.textContent = '已启用，未配置 API Key';
+        return;
+      }
+      if (result && result.fetched_at) {
+        quotaStatus.textContent = `已启用 · 上次更新 ${result.fetched_at}`;
+      } else {
+        quotaStatus.textContent = '已启用 · 等待首次查询';
+      }
+    }
+
+    async function doRefreshQuota() {
+      const btn = document.getElementById('refreshQuotaBtn');
+      const oldText = btn.textContent;
+      btn.textContent = '刷新中...';
+      btn.disabled = true;
+      try {
+        const result = await invoke("refresh_quota");
+        renderQuotaResult(result);
+        const settings = await invoke("load_quota_settings");
+        updateQuotaStatus(settings, result);
+        if (result.success) {
+          showToast('刷新成功');
+        } else {
+          showToast('刷新失败: ' + (result.error || '未知错误'));
+        }
+      } catch (err) {
+        quotaError.style.display = 'block';
+        quotaError.textContent = '刷新失败: ' + err;
+        showToast('刷新失败');
+      } finally {
+        btn.textContent = oldText;
+        btn.disabled = false;
+      }
+    }
+
+    window.openQuotaSettings = openQuotaSettings;
+
+    document.getElementById('quotaBtn').onclick = openQuotaSettings;
+    document.getElementById('saveQuotaBtn').onclick = saveQuotaSettings;
+    document.getElementById('closeQuotaBtn').onclick = closeQuotaSettings;
+    document.getElementById('refreshQuotaBtn').onclick = doRefreshQuota;
+
+    listen("quota-settings-changed", () => {
+      loadQuotaSettings();
+    });
+
+    // 启动后后台默默刷新一次（如果已启用）
+    invoke("refresh_quota").catch(() => {});
+
+    // ── 启动设置 ─────────────────────────────────────────────────────────────
+    const launchOverlay = document.getElementById('launchOverlay');
+    const cliCommand = document.getElementById('cliCommand');
+    const webCommand = document.getElementById('webCommand');
+    const cliStatusValue = document.getElementById('cliStatusValue');
+    const webStatusValue = document.getElementById('webStatusValue');
+    const launchStatus = document.getElementById('launchStatus');
+
+    function closeLaunchSettings() {
+      launchOverlay.classList.remove('active');
+    }
+
+    function openLaunchSettings() {
+      loadLaunchSettings();
+      launchOverlay.classList.add('active');
+    }
+
+    async function loadLaunchSettings() {
+      try {
+        const settings = await invoke("load_app_settings");
+        cliCommand.value = settings.cli_command || '';
+        webCommand.value = settings.web_command || '';
+        await refreshLaunchState();
+        launchStatus.textContent = '已加载';
+      } catch (err) {
+        launchStatus.textContent = '加载失败: ' + err;
+      }
+    }
+
+    async function saveLaunchSettings() {
+      const settings = {
+        cli_command: cliCommand.value.trim(),
+        web_command: webCommand.value.trim()
+      };
+      try {
+        await invoke("save_app_settings", { settings });
+        showToast('已保存');
+        closeLaunchSettings();
+      } catch (err) {
+        launchStatus.textContent = '保存失败: ' + err;
+      }
+    }
+
+    async function refreshLaunchState() {
+      try {
+        const state = await invoke("get_launch_state");
+        cliStatusValue.textContent = state.cli_running ? '运行中' : '未运行';
+        cliStatusValue.style.color = state.cli_running ? '#34c759' : '#ff3b30';
+        webStatusValue.textContent = state.web_running ? '运行中' : '未运行';
+        webStatusValue.style.color = state.web_running ? '#34c759' : '#ff3b30';
+      } catch (err) {
+        cliStatusValue.textContent = '未知';
+        webStatusValue.textContent = '未知';
+      }
+    }
+
+    async function testLaunchCli() {
+      launchStatus.textContent = '正在启动 CLI...';
+      try {
+        const state = await invoke("launch_cli");
+        cliStatusValue.textContent = state.cli_running ? '运行中' : '未运行';
+        cliStatusValue.style.color = state.cli_running ? '#34c759' : '#ff3b30';
+        launchStatus.textContent = state.cli_running ? 'CLI 已启动' : 'CLI 启动后未检测到运行';
+      } catch (err) {
+        launchStatus.textContent = 'CLI 启动失败: ' + err;
+      }
+    }
+
+    async function testLaunchWeb() {
+      launchStatus.textContent = '正在启动 Web...';
+      try {
+        const state = await invoke("launch_web");
+        webStatusValue.textContent = state.web_running ? '运行中' : '未运行';
+        webStatusValue.style.color = state.web_running ? '#34c759' : '#ff3b30';
+        launchStatus.textContent = state.web_running ? 'Web 已启动' : 'Web 启动后未检测到运行';
+      } catch (err) {
+        launchStatus.textContent = 'Web 启动失败: ' + err;
+      }
+    }
+
+    window.openLaunchSettings = openLaunchSettings;
+
+    document.getElementById('launchBtn').onclick = openLaunchSettings;
+    document.getElementById('saveLaunchBtn').onclick = saveLaunchSettings;
+    document.getElementById('closeLaunchBtn').onclick = closeLaunchSettings;
+    document.getElementById('testCliBtn').onclick = testLaunchCli;
+    document.getElementById('testWebBtn').onclick = testLaunchWeb;
+
+    // ── 版本检测与升级 ───────────────────────────────────────────────────────
+    const versionStatus = document.getElementById('versionStatus');
+    const versionRefreshBtn = document.getElementById('versionRefreshBtn');
+    const versionUpgradeBtn = document.getElementById('versionUpgradeBtn');
+    const versionProjectBtn = document.getElementById('versionProjectBtn');
+
+    function renderVersionInfo(info, isLoading = false) {
+      versionStatus.classList.remove('error');
+      if (isLoading) {
+        versionStatus.textContent = '正在检测版本...';
+        versionUpgradeBtn.style.display = 'none';
+        return;
+      }
+      if (!info || (!info.local && !info.error)) {
+        versionStatus.textContent = '暂无版本信息，点击 ↻ 检测';
+        versionUpgradeBtn.style.display = 'none';
+        return;
+      }
+      if (info.error) {
+        versionStatus.textContent = '版本检测失败: ' + info.error;
+        versionStatus.classList.add('error');
+        versionUpgradeBtn.style.display = 'none';
+        return;
+      }
+      if (info.has_update) {
+        versionStatus.textContent = `Kimi Code CLI ${info.local} · 最新版 ${info.latest}`;
+        versionUpgradeBtn.style.display = 'inline-block';
+      } else {
+        versionStatus.textContent = `Kimi Code CLI ${info.local} · 已是最新`;
+        versionUpgradeBtn.style.display = 'none';
+      }
+    }
+
+    async function checkVersion() {
+      renderVersionInfo(null, true);
+      versionRefreshBtn.disabled = true;
+      try {
+        const info = await invoke('check_kimi_version');
+        renderVersionInfo(info);
+      } catch (err) {
+        renderVersionInfo({ error: String(err) });
+      } finally {
+        versionRefreshBtn.disabled = false;
+      }
+    }
+
+    async function loadCachedVersion() {
+      try {
+        const info = await invoke('load_last_version');
+        if (info && (info.local || info.error)) {
+          renderVersionInfo(info);
+        }
+      } catch (err) {
+        // 缓存读取失败静默处理，等待在线检测
+      }
+    }
+
+    versionRefreshBtn.onclick = checkVersion;
+    versionProjectBtn.onclick = () => {
+      const url = 'https://github.com/MoonshotAI/kimi-code';
+      if (window.__TAURI__ && window.__TAURI__.shell && window.__TAURI__.shell.open) {
+        window.__TAURI__.shell.open(url).catch(() => window.open(url, '_blank'));
+      } else {
+        window.open(url, '_blank');
+      }
+    };
+    versionUpgradeBtn.onclick = async () => {
+      const oldText = versionUpgradeBtn.textContent;
+      versionUpgradeBtn.textContent = '升级中...';
+      versionUpgradeBtn.disabled = true;
+      try {
+        await invoke('upgrade_kimi');
+        showToast('已开始升级，请留意终端');
+        setTimeout(checkVersion, 3000);
+      } catch (err) {
+        showToast('升级失败: ' + err);
+      } finally {
+        versionUpgradeBtn.textContent = oldText;
+        versionUpgradeBtn.disabled = false;
+      }
+    };
+
+    // 启动时先显示缓存，再在线检测；额度刷新后也会同步刷新版本
+    loadCachedVersion();
+    checkVersion();
+
+    listen("quota-settings-changed", () => {
+      loadCachedVersion().catch(() => {});
+      checkVersion();
+    });
+
+    // 禁用主窗口内的默认右键菜单，避免菜单不消失的问题
+    document.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    initCommands();
+  </script>
+</body>
+</html>

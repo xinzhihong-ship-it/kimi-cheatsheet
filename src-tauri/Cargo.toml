@@ -1,0 +1,32 @@
+[package]
+name = "kimi-cheatsheet"
+version = "1.0.0"
+description = "Kimi Code CLI 菜单栏命令速查工具"
+authors = ["you"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.3", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-shell = "2"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri-plugin-log = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+chrono = "0.4"
+tokio = { version = "1", features = ["time"] }
+objc = "0.2"
+cocoa = "0.26"
+raw-window-handle = "0.6"
