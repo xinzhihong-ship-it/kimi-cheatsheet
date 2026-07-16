@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Kimi Cheatsheet",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "identifier": "com.example.kimi-cheatsheet",
   "build": {
     "frontendDist": "../public",

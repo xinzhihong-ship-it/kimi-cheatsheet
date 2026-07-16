@@ -31,15 +31,6 @@
     }
     .header h1 { font-size: 14px; font-weight: 600; }
     .header-actions { display: flex; gap: 6px; }
-    .drag-hint {
-      font-size: 10px;
-      color: rgba(255,255,255,0.55);
-      text-align: center;
-      margin: -4px 0 6px;
-      padding: 4px 0;
-      cursor: grab;
-      user-select: none;
-    }
     .btn {
       background: rgba(255,255,255,0.15);
       color: #fff;
@@ -157,6 +148,7 @@
     .editor-list {
       flex: 1;
       overflow-y: auto;
+      overflow-x: auto;
       border: 1px solid #ddd;
       border-radius: 8px;
       padding: 10px;
@@ -164,40 +156,45 @@
     }
     .editor-row {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       align-items: center;
       margin-bottom: 8px;
       background: #fff;
-      padding: 8px;
+      padding: 6px;
       border-radius: 8px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      min-width: fit-content;
     }
     .editor-row input {
       border: 1px solid #ddd;
       border-radius: 6px;
-      padding: 6px 8px;
+      padding: 5px 6px;
       font-size: 12px;
       outline: none;
     }
     .editor-row input:focus { border-color: #0066cc; }
-    .editor-row input.cat { width: 110px; flex-shrink: 0; }
-    .editor-row input.cmd { flex: 1.5; min-width: 140px; font-family: 'SF Mono', monospace; }
-    .editor-row input.desc { flex: 2; min-width: 160px; }
+    .editor-row input.cat { width: 84px; flex-shrink: 0; }
+    .editor-row input.cmd { flex: 1.5; min-width: 110px; font-family: 'SF Mono', monospace; }
+    .editor-row input.desc { flex: 2; min-width: 120px; }
     .editor-row .row-actions {
       display: flex;
-      gap: 4px;
+      gap: 3px;
       flex-shrink: 0;
     }
     .editor-row .row-actions button {
       border: none;
       background: #f0f0f2;
       color: #333;
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
     }
     .editor-row .row-actions button:hover { background: #e0e0e3; }
     .editor-row .row-actions button.danger { color: #ff3b30; }
@@ -442,7 +439,6 @@
         <button class="btn" id="editBtn">编辑</button>
       </div>
     </div>
-    <div class="drag-hint" data-tauri-drag-region="deep">按住顶部空白处拖动窗口</div>
     <input type="text" class="search-box" id="searchBox" placeholder="搜索命令或中文说明..." data-tauri-drag-region="false">
   </div>
 
@@ -470,7 +466,7 @@
     </div>
     <div class="editor-body">
       <div class="editor-help">
-        直接修改下方列表。每一行是一条命令：分类、命令、中文说明。点击「+ 添加」新增，点 🗑 删除，⇧ ⇩ 调整顺序。
+        直接修改下方列表。每一行是一条命令：分类、命令、中文说明。点击「+ 添加」新增，点 🗑 删除，↑ ↓ 调整顺序。
       </div>
       <div class="editor-list" id="editorList"></div>
       <div class="editor-footer-actions">
@@ -706,12 +702,12 @@
       actions.className = 'row-actions';
 
       const upBtn = document.createElement('button');
-      upBtn.textContent = '⇧';
+      upBtn.textContent = '↑';
       upBtn.title = '上移';
       upBtn.onclick = () => moveRow(index, -1);
 
       const downBtn = document.createElement('button');
-      downBtn.textContent = '⇩';
+      downBtn.textContent = '↓';
       downBtn.title = '下移';
       downBtn.onclick = () => moveRow(index, 1);
 
@@ -867,6 +863,8 @@
       searchBox.value = '';
       render('');
       window.scrollTo(0, 0);
+      // 每次显示窗口时刷新版本状态
+      checkVersion();
     });
 
     // ── 额度查询 ───────────────────────────────────────────────────────────

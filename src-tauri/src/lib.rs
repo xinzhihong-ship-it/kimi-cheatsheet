@@ -414,27 +414,45 @@ fn get_local_kimi_version() -> Result<String, String> {
     Ok(version)
 }
 
-async fn get_latest_kimi_version() -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(10))
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+async fn fetch_latest_version(client: &reqwest::Client, url: &str) -> Result<String, String> {
     let resp = client
-        .get("https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest")
+        .get(url)
         .header("User-Agent", "kimi-cheatsheet")
         .send()
         .await
         .map_err(|e| format!("请求失败: {}", e))?;
     let status = resp.status();
     if !status.is_success() {
-        return Err(format!("GitHub API 返回 {}", status));
+        return Err(format!("API 返回 {}", status));
     }
     let json: serde_json::Value = resp.json().await.map_err(|e| format!("解析 JSON 失败: {}", e))?;
     let tag = json["tag_name"]
         .as_str()
-        .ok_or("GitHub 返回中没有 tag_name")?;
+        .ok_or("返回中没有 tag_name")?;
     let version = tag.split('@').last().unwrap_or(tag).to_string();
     Ok(version)
+}
+
+async fn get_latest_kimi_version() -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    // 优先走官方 API，若被 403/限流/墙，则 fallback 到国内 GitHub 代理
+    let urls = vec![
+        "https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest",
+        "https://ghproxy.com/https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest",
+    ];
+
+    let mut last_err = String::new();
+    for url in urls {
+        match fetch_latest_version(&client, url).await {
+            Ok(v) => return Ok(v),
+            Err(e) => last_err = format!("{} -> {}", url, e),
+        }
+    }
+    Err(format!("所有版本检测源均失败: {}", last_err))
 }
 
 #[tauri::command]
@@ -451,7 +469,10 @@ async fn check_kimi_version(app: AppHandle) -> Result<VersionInfo, String> {
     }
     match get_latest_kimi_version().await {
         Ok(v) => {
-            info.has_update = v != info.local;
+            // GitHub tag 可能带 v 前缀（如 v0.24.2），本地版本可能不带，统一去掉 v 再比较
+            let local_norm = info.local.trim_start_matches('v');
+            let latest_norm = v.trim_start_matches('v');
+            info.has_update = latest_norm != local_norm;
             info.latest = Some(v);
         }
         Err(e) => info.error = Some(e),
