@@ -2,6 +2,8 @@
 
 Kimi Code CLI 命令速查工具 —— macOS 菜单栏小应用。
 
+> 本项目全部代码由 Kimi 生成。
+
 ![platform](https://img.shields.io/badge/platform-macOS-blue)
 ![release](https://img.shields.io/github/v/release/xinzhihong-ship-it/kimi-cheatsheet)
 
