@@ -439,7 +439,20 @@ async fn get_latest_kimi_version() -> Result<String, String> {
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    // 优先走官方 API，若被 403/限流/墙，则 fallback 到国内 GitHub 代理
+    // 优先从 npm registry 获取版本，与 `kimi upgrade` 实际来源保持一致
+    let npm_url = "https://registry.npmjs.org/@moonshot-ai/kimi-code";
+    match client.get(npm_url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                if let Some(version) = json["dist-tags"]["latest"].as_str() {
+                    return Ok(version.to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+
+    // fallback 到 GitHub releases（带国内代理）
     let urls = vec![
         "https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest",
         "https://ghproxy.com/https://api.github.com/repos/MoonshotAI/kimi-code/releases/latest",
@@ -469,7 +482,7 @@ async fn check_kimi_version(app: AppHandle) -> Result<VersionInfo, String> {
     }
     match get_latest_kimi_version().await {
         Ok(v) => {
-            // GitHub tag 可能带 v 前缀（如 v0.24.2），本地版本可能不带，统一去掉 v 再比较
+            // 远程版本号可能带 v 前缀，本地版本可能不带，统一去掉 v 再比较
             let local_norm = info.local.trim_start_matches('v');
             let latest_norm = v.trim_start_matches('v');
             info.has_update = latest_norm != local_norm;
