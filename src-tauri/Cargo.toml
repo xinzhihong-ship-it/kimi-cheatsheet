@@ -1,6 +1,6 @@
 [package]
 name = "kimi-cheatsheet"
-version = "1.0.0"
+version = "1.1.2"
 description = "Kimi Code CLI 菜单栏命令速查工具"
 authors = ["you"]
 license = ""

@@ -237,6 +237,9 @@ fn load_last_quota(app: AppHandle) -> Result<QuotaResult, String> {
 pub struct AppSettings {
     pub cli_command: String,
     pub web_command: String,
+    /// 启动 Web 后用于打开页面的浏览器 App 名，空 = 系统默认浏览器
+    #[serde(default)]
+    pub browser: String,
 }
 
 impl AppSettings {
@@ -247,6 +250,7 @@ impl AppSettings {
             #[cfg(not(target_os = "macos"))]
             cli_command: "kimi".to_string(),
             web_command: "kimi web".to_string(),
+            browser: String::new(),
         }
     }
 }
@@ -387,6 +391,80 @@ fn get_launch_state() -> LaunchState {
         *cached = state;
     }
     state
+}
+
+// ── Web 服务连接信息 ───────────────────────────────────────────────────────
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+pub struct WebServerInfo {
+    pub running: bool,
+    pub url: String,
+    pub token: String,
+    pub full_url: String,
+    pub note: String,
+}
+
+fn kimi_code_home() -> PathBuf {
+    if let Ok(h) = std::env::var("KIMI_CODE_HOME") {
+        if !h.trim().is_empty() {
+            return PathBuf::from(h);
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        return PathBuf::from(home).join(".kimi-code");
+    }
+    PathBuf::from(".kimi-code")
+}
+
+#[tauri::command]
+fn get_web_server_info() -> WebServerInfo {
+    let home = kimi_code_home();
+    let mut info = WebServerInfo::default();
+
+    // 读取 server/instances 下心跳最新的实例
+    let dir = home.join("server").join("instances");
+    let mut best: Option<serde_json::Value> = None;
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(content) = fs::read_to_string(&path) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&content) {
+                    let hb = v["heartbeat_at"].as_u64().unwrap_or(0);
+                    let best_hb = best
+                        .as_ref()
+                        .and_then(|b| b["heartbeat_at"].as_u64())
+                        .unwrap_or(0);
+                    if best.is_none() || hb >= best_hb {
+                        best = Some(v);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(inst) = best {
+        let pid = inst["pid"].as_i64().unwrap_or(0) as i32;
+        let host = inst["host"].as_str().unwrap_or("127.0.0.1").to_string();
+        let port = inst["port"].as_u64().unwrap_or(58627);
+        if pid > 0 && process_is_listening(pid) {
+            info.running = true;
+            info.url = format!("http://{}:{}", host, port);
+        }
+    }
+
+    if let Ok(token) = fs::read_to_string(home.join("server.token")) {
+        info.token = token.trim().to_string();
+    }
+    if info.running && !info.token.is_empty() {
+        info.full_url = format!("{}/#token={}", info.url, info.token);
+    }
+    if std::env::var("KIMI_CODE_PASSWORD").is_ok() {
+        info.note = "检测到 KIMI_CODE_PASSWORD 环境变量，网页登录以该密码为准".to_string();
+    }
+    info
 }
 
 fn get_local_kimi_version() -> Result<String, String> {
@@ -674,9 +752,102 @@ async fn launch_cli(app: AppHandle) -> Result<LaunchState, String> {
 #[tauri::command]
 async fn launch_web(app: AppHandle) -> Result<LaunchState, String> {
     let settings = load_app_settings(app)?;
-    spawn_command(&settings.web_command)?;
-    tokio::time::sleep(Duration::from_millis(800)).await;
+    let mut cmd = settings.web_command.clone();
+    // 从 App 启动时由应用负责按用户选择的浏览器打开页面，
+    // 给 kimi web 自动补 --no-open，避免它再用默认浏览器打开一次
+    let is_kimi_web = cmd.contains("kimi web") || cmd.contains("kimi-code web");
+    if is_kimi_web && !cmd.contains("--no-open") {
+        cmd.push_str(" --no-open");
+    }
+    spawn_command(&cmd)?;
+
+    // 等服务注册 instance 并就绪（最多约 10 秒），然后用选定浏览器打开
+    for _ in 0..20 {
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        let info = get_web_server_info();
+        if info.running {
+            let url = if !info.full_url.is_empty() {
+                info.full_url.clone()
+            } else {
+                info.url.clone()
+            };
+            if !url.is_empty() {
+                if let Err(e) = open_in_browser(&settings.browser, &url) {
+                    log::warn!("open web ui failed: {}", e);
+                }
+            }
+            break;
+        }
+    }
     Ok(get_launch_state())
+}
+
+/// 用指定浏览器打开 URL；browser 为空时用系统默认浏览器
+fn open_in_browser(browser: &str, url: &str) -> Result<(), String> {
+    let mut cmd = std::process::Command::new("open");
+    let b = browser.trim();
+    if !b.is_empty() {
+        cmd.arg("-a").arg(b);
+    }
+    cmd.arg(url);
+    cmd.spawn().map_err(|e| format!("打开浏览器失败: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_web_ui(app: AppHandle) -> Result<(), String> {
+    let settings = load_app_settings(app)?;
+    let info = get_web_server_info();
+    if !info.running {
+        return Err("Web 服务未运行".to_string());
+    }
+    let url = if !info.full_url.is_empty() {
+        info.full_url
+    } else {
+        info.url
+    };
+    open_in_browser(&settings.browser, &url)
+}
+
+/// 扫描本机已安装的常见浏览器（/Applications 与 ~/Applications）
+#[tauri::command]
+fn list_browsers() -> Vec<String> {
+    const KNOWN: &[&str] = &[
+        "Safari",
+        "Google Chrome",
+        "Microsoft Edge",
+        "Arc",
+        "Firefox",
+        "Brave Browser",
+        "Opera",
+        "Vivaldi",
+        "Chromium",
+        "Orion",
+        "Dia",
+        "Comet",
+        "Zen",
+    ];
+    let mut found: Vec<String> = Vec::new();
+    let mut dirs = vec![PathBuf::from("/Applications")];
+    if let Ok(home) = std::env::var("HOME") {
+        dirs.push(PathBuf::from(home).join("Applications"));
+    }
+    for dir in dirs {
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if let Some(app) = name.strip_suffix(".app") {
+                    if KNOWN.iter().any(|k| k.eq_ignore_ascii_case(app))
+                        && !found.iter().any(|f| f == app)
+                    {
+                        found.push(app.to_string());
+                    }
+                }
+            }
+        }
+    }
+    found.sort();
+    found
 }
 
 async fn fetch_kimi_quota(api_key: &str) -> Result<QuotaResult, String> {
@@ -1300,8 +1471,11 @@ pub fn run() {
             load_app_settings,
             save_app_settings,
             get_launch_state,
+            get_web_server_info,
             launch_cli,
             launch_web,
+            open_web_ui,
+            list_browsers,
             stop_cli,
             stop_web,
             check_kimi_version,

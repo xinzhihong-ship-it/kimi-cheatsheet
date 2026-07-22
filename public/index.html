@@ -508,6 +508,18 @@
             <span class="hint">启动 Kimi Web UI 的命令，可带 --host、--auth-token 等参数。</span>
           </div>
         </div>
+        <div class="quota-row" style="align-items:flex-start;">
+          <label style="padding-top:6px;">浏览器</label>
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+              <select id="browserSelect" style="flex:1;border:1px solid #ddd;border-radius:6px;padding:6px 8px;font-size:12px;outline:none;background:#fff;">
+                <option value="">系统默认浏览器</option>
+              </select>
+              <button class="btn" id="refreshBrowsersBtn" style="background:#f0f0f2;color:#333;" title="重新检测已安装的浏览器">↻</button>
+            </div>
+            <span class="hint">启动 Web 后自动用该浏览器打开连接地址；从 App 启动时会自动补 --no-open，不会再用默认浏览器重复打开。</span>
+          </div>
+        </div>
       </div>
 
       <div class="quota-section">
@@ -521,6 +533,22 @@
             <div class="label">Web</div>
             <div class="value" id="webStatusValue">-</div>
           </div>
+        </div>
+      </div>
+
+      <div class="quota-section" id="webInfoSection" style="display:none;">
+        <div class="quota-section-title">Web 连接信息</div>
+        <div class="quota-row">
+          <label>连接地址</label>
+          <input type="text" id="webFullUrl" readonly style="cursor:pointer;" title="点击复制">
+        </div>
+        <div class="quota-row">
+          <label>Token</label>
+          <input type="text" id="webToken" readonly style="cursor:pointer;" title="点击复制">
+        </div>
+        <div class="quota-row">
+          <span class="hint" id="webInfoNote" style="flex:1;">点击地址或 Token 即可复制；地址已带 #token 参数，浏览器打开自动登录。</span>
+          <button class="btn" id="openWebBtn" style="background:#0066cc;color:#fff;flex-shrink:0;">在浏览器打开</button>
         </div>
       </div>
 
@@ -1069,6 +1097,7 @@
         const settings = await invoke("load_app_settings");
         cliCommand.value = settings.cli_command || '';
         webCommand.value = settings.web_command || '';
+        await loadBrowserList(settings.browser || '');
         await refreshLaunchState();
         launchStatus.textContent = '已加载';
       } catch (err) {
@@ -1076,17 +1105,45 @@
       }
     }
 
-    async function saveLaunchSettings() {
+    async function loadBrowserList(selected) {
+      const select = document.getElementById('browserSelect');
+      try {
+        const browsers = await invoke("list_browsers");
+        select.innerHTML = '<option value="">系统默认浏览器</option>';
+        browsers.forEach(b => {
+          const opt = document.createElement('option');
+          opt.value = b;
+          opt.textContent = b;
+          select.appendChild(opt);
+        });
+        // 已保存的浏览器若未检测到（可能已卸载），仍显示出来让用户知晓
+        if (selected && !browsers.includes(selected)) {
+          const opt = document.createElement('option');
+          opt.value = selected;
+          opt.textContent = selected + '（未检测到）';
+          select.appendChild(opt);
+        }
+        select.value = selected || '';
+      } catch {
+        select.innerHTML = '<option value="">系统默认浏览器</option>';
+      }
+    }
+
+    async function saveLaunchSettings(silent = false) {
       const settings = {
         cli_command: cliCommand.value.trim(),
-        web_command: webCommand.value.trim()
+        web_command: webCommand.value.trim(),
+        browser: document.getElementById('browserSelect').value
       };
       try {
         await invoke("save_app_settings", { settings });
-        showToast('已保存');
-        closeLaunchSettings();
+        if (!silent) {
+          showToast('已保存');
+          launchStatus.textContent = '设置已保存';
+        }
       } catch (err) {
         launchStatus.textContent = '保存失败: ' + err;
+        throw err;
       }
     }
 
@@ -1101,11 +1158,57 @@
         cliStatusValue.textContent = '未知';
         webStatusValue.textContent = '未知';
       }
+      refreshWebServerInfo();
     }
+
+    async function refreshWebServerInfo() {
+      const section = document.getElementById('webInfoSection');
+      try {
+        const info = await invoke("get_web_server_info");
+        if (!info.running) {
+          section.style.display = 'none';
+          return;
+        }
+        section.style.display = 'block';
+        document.getElementById('webFullUrl').value = info.full_url || info.url;
+        document.getElementById('webToken').value = info.token || '(未找到 token)';
+        if (info.note) {
+          document.getElementById('webInfoNote').textContent = info.note;
+        }
+      } catch {
+        section.style.display = 'none';
+      }
+    }
+
+    document.getElementById('webFullUrl').onclick = async (e) => {
+      try {
+        await navigator.clipboard.writeText(e.target.value);
+        showToast('已复制连接地址');
+      } catch { showToast('复制失败'); }
+    };
+    document.getElementById('webToken').onclick = async (e) => {
+      try {
+        await navigator.clipboard.writeText(e.target.value);
+        showToast('已复制 Token');
+      } catch { showToast('复制失败'); }
+    };
+    document.getElementById('openWebBtn').onclick = async () => {
+      try {
+        await invoke("open_web_ui");
+      } catch (err) {
+        showToast('打开失败: ' + err);
+      }
+    };
+    document.getElementById('refreshBrowsersBtn').onclick = () => {
+      const select = document.getElementById('browserSelect');
+      loadBrowserList(select.value);
+      showToast('已重新检测浏览器');
+    };
 
     async function testLaunchCli() {
       launchStatus.textContent = '正在启动 CLI...';
       try {
+        await saveLaunchSettings(true);
         const state = await invoke("launch_cli");
         cliStatusValue.textContent = state.cli_running ? '运行中' : '未运行';
         cliStatusValue.style.color = state.cli_running ? '#34c759' : '#ff3b30';
@@ -1118,10 +1221,13 @@
     async function testLaunchWeb() {
       launchStatus.textContent = '正在启动 Web...';
       try {
+        await saveLaunchSettings(true);
         const state = await invoke("launch_web");
         webStatusValue.textContent = state.web_running ? '运行中' : '未运行';
         webStatusValue.style.color = state.web_running ? '#34c759' : '#ff3b30';
         launchStatus.textContent = state.web_running ? 'Web 已启动' : 'Web 启动后未检测到运行';
+        // 服务注册 instance 文件有延迟，稍后再刷新一次连接信息
+        setTimeout(refreshWebServerInfo, 2000);
       } catch (err) {
         launchStatus.textContent = 'Web 启动失败: ' + err;
       }
@@ -1130,7 +1236,7 @@
     window.openLaunchSettings = openLaunchSettings;
 
     document.getElementById('launchBtn').onclick = openLaunchSettings;
-    document.getElementById('saveLaunchBtn').onclick = saveLaunchSettings;
+    document.getElementById('saveLaunchBtn').onclick = () => saveLaunchSettings();
     document.getElementById('closeLaunchBtn').onclick = closeLaunchSettings;
     document.getElementById('testCliBtn').onclick = testLaunchCli;
     document.getElementById('testWebBtn').onclick = testLaunchWeb;
